@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Session Saver",
+  "version": "1.0.0",
+  "description": "Stops web apps from logging you out or going idle. Simulates light activity and keeps the tab seen as focused. Enable it per-site from the toolbar.",
+  "permissions": ["storage", "alarms", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "icons": {
+    "16": "icons/active-16.png",
+    "32": "icons/active-32.png",
+    "48": "icons/active-48.png",
+    "128": "icons/active-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/inactive-16.png",
+      "32": "icons/inactive-32.png",
+      "48": "icons/inactive-48.png",
+      "128": "icons/inactive-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
