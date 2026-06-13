@@ -13,7 +13,9 @@ function hostOf(url) {
 // 1) Spoofs tab focus/visibility so apps that pause or log out on blur keep
 //    treating the tab as visible and focused while it's backgrounded.
 // 2) Re-fires focus so any focus-gated logic re-applies.
-// 3) Dispatches light synthetic activity: a small pointer/mouse move and a
+// 3) Blocks page-initiated fullscreen so keep-alive activity cannot leave the
+//    enabled site stuck in fullscreen.
+// 4) Dispatches light synthetic activity: a small pointer/mouse move and a
 //    harmless F15 keypress (F15 triggers nothing in apps or the OS). Together
 //    these satisfy DOM-level idle/inactivity detectors without changing the page.
 function keepAlive() {
@@ -31,10 +33,43 @@ function keepAlive() {
     try {
       document.hasFocus = () => true;
     } catch (e) {}
+
+    const blockFullscreen = (proto, method) => {
+      if (!proto || typeof proto[method] !== "function") return;
+      try {
+        Object.defineProperty(proto, method, {
+          configurable: true,
+          value: function () {
+            return Promise.reject(new DOMException("Fullscreen blocked by Session Saver.", "NotAllowedError"));
+          },
+        });
+      } catch (e) {}
+    };
+    blockFullscreen(Element.prototype, "requestFullscreen");
+    blockFullscreen(Element.prototype, "webkitRequestFullscreen");
+    blockFullscreen(Element.prototype, "webkitRequestFullScreen");
+    blockFullscreen(Element.prototype, "mozRequestFullScreen");
+    blockFullscreen(Element.prototype, "msRequestFullscreen");
   }
 
   try {
     window.dispatchEvent(new Event("focus"));
+  } catch (e) {}
+
+  try {
+    const fullscreenElement =
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement;
+    if (fullscreenElement) {
+      const exitFullscreen =
+        document.exitFullscreen ||
+        document.webkitExitFullscreen ||
+        document.mozCancelFullScreen ||
+        document.msExitFullscreen;
+      if (typeof exitFullscreen === "function") exitFullscreen.call(document);
+    }
   } catch (e) {}
 
   try {
