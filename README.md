@@ -34,6 +34,16 @@ turn on **Pause video to save resources**. It detaches the source from every
 rest of the page (and the keep-alive) keeps running. Un-checking it restores
 playback; if a video doesn't come back, reloading the tab always recovers.
 
+## Block mouse input (optional)
+
+For remote-desktop or in-browser **VM** consoles, an accidental click or stray
+cursor movement over the tab can be forwarded straight to the guest. Turn on
+**Block mouse input** to swallow your real mouse, pointer, and wheel events in
+capture phase before the page sees them, so they can't reach the VM. Keyboard
+input is left alone. Only genuine (`isTrusted`) events are blocked — the
+keep-alive's own synthetic activity still gets through — and un-checking it (or
+turning the site off) restores normal input immediately.
+
 ## Install (unpacked)
 
 1. Open `chrome://extensions`, enable **Developer mode** (top right).
@@ -55,6 +65,16 @@ playback; if a video doesn't come back, reloading the tab always recovers.
   often keeps the session alive on its own.
 - This is a personal-utility tool. Use it on services where keeping your own
   session alive is permitted.
+
+## Changelog
+
+- **1.1.0** — Add per-site **Block mouse input** option: swallows your real
+  mouse/pointer/wheel events in capture phase so a stray click or movement can't
+  be forwarded to a remote-desktop/VM console. Synthetic keep-alive activity is
+  unaffected.
+- **1.0.0** — Initial release: per-site keep-alive (focus/visibility spoof, light
+  synthetic activity, no tab discarding), optional pause-video, and fullscreen
+  blocking during keep-alive.
 
 ## License
 

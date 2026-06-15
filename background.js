@@ -1,4 +1,4 @@
-const DEFAULTS = { enabledHosts: [], pauseHosts: [], intervalSec: 60 };
+const DEFAULTS = { enabledHosts: [], pauseHosts: [], lockMouseHosts: [], intervalSec: 60 };
 
 function hostOf(url) {
   try {
@@ -140,6 +140,39 @@ function applyPause(paused) {
   }
 }
 
+// Injected into MAIN world. Mouse lock: capture-phase listeners on window
+// swallow the user's real mouse/pointer/wheel input before the page sees it, so
+// an accidental click or drag isn't forwarded into a remote-desktop/VM canvas.
+// Only trusted (real) events are blocked — the keep-alive's synthetic pointer
+// activity still reaches the page's idle detectors. Idempotent.
+function applyMouseLock(locked) {
+  const TYPES = [
+    "mousedown", "mouseup", "click", "dblclick", "auxclick", "contextmenu",
+    "mousemove", "mouseover", "mouseout", "wheel",
+    "pointerdown", "pointerup", "pointermove", "pointerover", "pointerout", "pointercancel",
+    "dragstart", "drag", "drop",
+  ];
+  if (!window.__ssMouseLock) {
+    const handler = (e) => {
+      if (!window.__ssMouseLock.active || !e.isTrusted) return;
+      e.stopImmediatePropagation();
+      if (e.cancelable) e.preventDefault();
+    };
+    window.__ssMouseLock = { active: false, handler, bound: false };
+  }
+  const L = window.__ssMouseLock;
+
+  if (locked && !L.bound) {
+    TYPES.forEach((t) => window.addEventListener(t, L.handler, { capture: true, passive: false }));
+    L.bound = true;
+  } else if (!locked && L.bound) {
+    TYPES.forEach((t) => window.removeEventListener(t, L.handler, { capture: true }));
+    L.bound = false;
+  }
+  L.active = locked;
+  return { ok: true, state: locked ? "locked" : "unlocked" };
+}
+
 function iconSet(state) {
   const p = (n) => `icons/${state}-${n}.png`;
   return { 16: p(16), 32: p(32), 48: p(48), 128: p(128) };
@@ -164,10 +197,11 @@ async function refreshAllIcons() {
 }
 
 async function pulseAll() {
-  const { enabledHosts, pauseHosts } = await chrome.storage.sync.get(DEFAULTS);
+  const { enabledHosts, pauseHosts, lockMouseHosts } = await chrome.storage.sync.get(DEFAULTS);
   if (!enabledHosts.length) return;
   const enabled = new Set(enabledHosts);
   const paused = new Set(pauseHosts);
+  const locked = new Set(lockMouseHosts);
   for (const tab of await chrome.tabs.query({})) {
     if (tab.id == null || !tab.url) continue;
     const h = hostOf(tab.url);
@@ -177,20 +211,32 @@ async function pulseAll() {
     chrome.scripting
       .executeScript({ target: { tabId: tab.id }, world: "MAIN", func: applyPause, args: [paused.has(h)] })
       .catch(() => {});
+    chrome.scripting
+      .executeScript({ target: { tabId: tab.id }, world: "MAIN", func: applyMouseLock, args: [locked.has(h)] })
+      .catch(() => {});
   }
 }
 
-// Apply the pause state immediately to matching tabs (don't wait for a pulse).
-async function applyPauseNow() {
-  const { enabledHosts, pauseHosts } = await chrome.storage.sync.get(DEFAULTS);
+// Apply the pause / mouse-lock state immediately (don't wait for a pulse). We
+// pass over every http(s) tab and compute the effective state — disabling a
+// site (or unchecking an option) must release a lock/pause that's still active
+// on the page, so we inject the "off" call too. Both injected functions are
+// idempotent and safe on pages they were never applied to.
+async function applyStateNow() {
+  const { enabledHosts, pauseHosts, lockMouseHosts } = await chrome.storage.sync.get(DEFAULTS);
   const enabled = new Set(enabledHosts);
   const paused = new Set(pauseHosts);
+  const locked = new Set(lockMouseHosts);
   for (const tab of await chrome.tabs.query({})) {
     if (tab.id == null || !tab.url) continue;
     const h = hostOf(tab.url);
-    if (!h || !enabled.has(h)) continue;
+    if (!h) continue;
+    const on = enabled.has(h);
     chrome.scripting
-      .executeScript({ target: { tabId: tab.id }, world: "MAIN", func: applyPause, args: [paused.has(h)] })
+      .executeScript({ target: { tabId: tab.id }, world: "MAIN", func: applyPause, args: [on && paused.has(h)] })
+      .catch(() => {});
+    chrome.scripting
+      .executeScript({ target: { tabId: tab.id }, world: "MAIN", func: applyMouseLock, args: [on && locked.has(h)] })
       .catch(() => {});
   }
 }
@@ -219,7 +265,7 @@ chrome.alarms.onAlarm.addListener((a) => {
 chrome.storage.onChanged.addListener((changes) => {
   if (changes.enabledHosts || changes.intervalSec) syncAlarm();
   if (changes.enabledHosts) refreshAllIcons();
-  if (changes.pauseHosts) applyPauseNow();
+  if (changes.pauseHosts || changes.lockMouseHosts) applyStateNow();
 });
 
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
