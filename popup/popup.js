@@ -1,4 +1,4 @@
-const DEFAULTS = { enabledHosts: [], pauseHosts: [], lockMouseHosts: [], intervalSec: 60 };
+const DEFAULTS = { enabledHosts: [], pauseHosts: [], lockMouseHosts: [], alertHosts: [], intervalSec: 60 };
 
 async function currentHost() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -19,6 +19,8 @@ async function init() {
   const pauseLabel = document.getElementById("pauseLabel");
   const lockMouse = document.getElementById("lockMouse");
   const lockMouseLabel = document.getElementById("lockMouseLabel");
+  const alert = document.getElementById("alert");
+  const alertLabel = document.getElementById("alertLabel");
   const interval = document.getElementById("interval");
   const status = document.getElementById("status");
 
@@ -31,6 +33,7 @@ async function init() {
     toggle.disabled = true;
     pause.disabled = true;
     lockMouse.disabled = true;
+    alert.disabled = true;
     status.innerHTML = '<span class="off">Open a website to use Session Saver.</span>';
     return;
   }
@@ -39,20 +42,26 @@ async function init() {
   toggle.checked = cfg.enabledHosts.includes(host);
   pause.checked = cfg.pauseHosts.includes(host);
   lockMouse.checked = cfg.lockMouseHosts.includes(host);
+  alert.checked = cfg.alertHosts.includes(host);
 
   function render() {
     pause.disabled = !toggle.checked;
     pauseLabel.className = toggle.checked ? "" : "muted";
     lockMouse.disabled = !toggle.checked;
     lockMouseLabel.className = toggle.checked ? "" : "muted";
+    alert.disabled = !toggle.checked;
+    alertLabel.className = toggle.checked ? "" : "muted";
     let html;
     if (toggle.checked) {
       html = '<span class="on">Active on this site.</span> Sending light activity and keeping the tab focused; you can background it.';
       if (pause.checked) {
-        html += '<br><br><span class="on">Video paused.</span> Decoding stopped to save resources. If a video doesn\'t resume, reload the tab.';
+        html += '<br><br><span class="on">Video/Audio paused.</span> Decoding stopped to save resources. If playback doesn\'t resume, reload the tab.';
       }
       if (lockMouse.checked) {
         html += '<br><br><span class="on">Mouse input blocked.</span> Your clicks and movement won\'t reach this page, so they can\'t be passed to the VM. Uncheck to use it.';
+      }
+      if (alert.checked) {
+        html += '<br><br><span class="on">Captcha alert on.</span> If a verification appears, you\'ll get a red banner, a beep, and a notification — solve it yourself to stay signed in.';
       }
     } else {
       html = '<span class="off">Off for this site.</span> Turn on before leaving it idle.';
@@ -61,20 +70,28 @@ async function init() {
   }
 
   toggle.addEventListener("change", async () => {
-    const { enabledHosts, pauseHosts, lockMouseHosts } = await chrome.storage.sync.get(DEFAULTS);
+    const { enabledHosts, pauseHosts, lockMouseHosts, alertHosts } = await chrome.storage.sync.get(DEFAULTS);
     const nextEnabled = enabledHosts.filter((h) => h !== host);
     let nextPause = pauseHosts;
     let nextLock = lockMouseHosts;
+    let nextAlert = alertHosts;
     if (toggle.checked) {
       nextEnabled.push(host);
     } else {
-      // turning the site off also clears its pause and mouse-lock state
+      // turning the site off also clears its pause, mouse-lock and alert state
       pause.checked = false;
       lockMouse.checked = false;
+      alert.checked = false;
       nextPause = pauseHosts.filter((h) => h !== host);
       nextLock = lockMouseHosts.filter((h) => h !== host);
+      nextAlert = alertHosts.filter((h) => h !== host);
     }
-    await chrome.storage.sync.set({ enabledHosts: nextEnabled, pauseHosts: nextPause, lockMouseHosts: nextLock });
+    await chrome.storage.sync.set({
+      enabledHosts: nextEnabled,
+      pauseHosts: nextPause,
+      lockMouseHosts: nextLock,
+      alertHosts: nextAlert,
+    });
     render();
   });
 
@@ -91,6 +108,14 @@ async function init() {
     const next = lockMouseHosts.filter((h) => h !== host);
     if (lockMouse.checked) next.push(host);
     await chrome.storage.sync.set({ lockMouseHosts: next });
+    render();
+  });
+
+  alert.addEventListener("change", async () => {
+    const { alertHosts } = await chrome.storage.sync.get(DEFAULTS);
+    const next = alertHosts.filter((h) => h !== host);
+    if (alert.checked) next.push(host);
+    await chrome.storage.sync.set({ alertHosts: next });
     render();
   });
 

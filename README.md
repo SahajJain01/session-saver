@@ -26,13 +26,13 @@ When enabled for a site, a background alarm runs every *interval* seconds
 The toolbar icon is **green** when the current site is active and **gray** when
 it isn't.
 
-## Pause video (optional)
+## Pause video/audio (optional)
 
-If a site streams video you don't need to watch while it's in the background,
-turn on **Pause video to save resources**. It detaches the source from every
-`<video>` on the page so the browser stops decoding/compositing it, while the
-rest of the page (and the keep-alive) keeps running. Un-checking it restores
-playback; if a video doesn't come back, reloading the tab always recovers.
+If a site streams video or audio you don't need to watch or listen to while it's in the background,
+turn on **Pause video/audio to save resources**. It detaches the source from every
+`<video>` and `<audio>` on the page so the browser stops decoding/compositing it, while the
+page keeps running. When you return, uncheck it to reattach the source and resume
+playback; if media doesn't come back, reloading the tab always recovers.
 
 ## Block mouse input (optional)
 
@@ -43,6 +43,30 @@ capture phase before the page sees them, so they can't reach the VM. Keyboard
 input is left alone. Only genuine (`isTrusted`) events are blocked — the
 keep-alive's own synthetic activity still gets through — and un-checking it (or
 turning the site off) restores normal input immediately.
+
+## Alert me when a captcha appears (optional)
+
+Some sites pop a **verification / "are you still there?" captcha** (often a small
+math sum) to confirm a human is present. Session Saver does **not** solve or
+bypass these — the point of the challenge is that a person answers it. What this
+option does is make sure you *notice* it in time:
+
+Turn on **Alert me when a captcha appears** and, while the site is enabled, a
+watcher looks for a challenge on the page (known captcha widgets, "verify / not a
+robot / still there" prompts, or a visible math sum). The moment one shows up it:
+
+- drops a **red banner** across the top of the page,
+- plays a **repeating beep**,
+- **flashes the tab title** (`⚠ CAPTCHA — SOLVE NOW`), and
+- raises a **desktop notification** and a `!` badge on the toolbar icon, so it
+  reaches you even through a remote-desktop session or when the tab is in the
+  background.
+
+You still solve the challenge yourself. The alert clears automatically once the
+challenge is gone, and **Dismiss** silences it for the current one.
+
+> This is detection-and-notify only. It never reads, answers, or submits the
+> challenge — keeping a human in the loop is the whole idea.
 
 ## Install (unpacked)
 
@@ -68,6 +92,11 @@ turning the site off) restores normal input immediately.
 
 ## Changelog
 
+- **1.3.0** — Expand the optional pause feature to also disable incoming audio streams (now **Pause video/audio**).
+- **1.2.0** — Add per-site **Alert me when a captcha appears** option: detects a
+  verification/captcha on the page and alerts you (banner, beep, flashing title,
+  desktop notification) so you can solve it yourself. It does not solve or bypass
+  the challenge.
 - **1.1.0** — Add per-site **Block mouse input** option: swallows your real
   mouse/pointer/wheel events in capture phase so a stray click or movement can't
   be forwarded to a remote-desktop/VM console. Synthetic keep-alive activity is
